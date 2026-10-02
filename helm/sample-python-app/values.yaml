@@ -1,14 +1,12 @@
 replicaCount: 2
 
 image:
-  repository: sample-python-app
+  repository: acreusdev01.azurecr.io/sample-python-app
   pullPolicy: IfNotPresent
-  tag: dev
-
+  tag: a37aadb90befa274f19d6b248cdd3fbeda850f96
 containerPort: 8000
-
 service:
-  type: LoadBalancer
+  type: ClusterIP
   port: 80
 
 podSecurityContext:
