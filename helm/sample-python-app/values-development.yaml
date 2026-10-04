@@ -16,5 +16,5 @@ ingress:
     - host: sample-python-app.local
       paths:
         - path: /
-          pathType: ImplementationSpecific
+          pathType: Prefix
     
