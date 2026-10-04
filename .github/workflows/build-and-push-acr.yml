@@ -116,7 +116,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
       - name: Generate github app token
         id: generate-token
-        uses: action/github-app-token@v1
+        uses: actions/create-github-app-token@v1
         with:
           app_id: ${{ vars.GITHUB_APP_ID }}
           private_key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
