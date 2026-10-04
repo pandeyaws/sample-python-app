@@ -100,7 +100,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ vars.ACR_LOGIN_SERVER }}/sample-python-app
+          images: ${{ env.ACR_LOGIN_SERVER }}/sample-python-app
           tags: |
             type=raw,value=${{ needs.version.outputs.tag }}
             type=raw,value=${{ github.sha }}
@@ -116,9 +116,10 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ vars.GITHUB_APP_ID }}
-          private_key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
-          repository: sample-python-app
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          owner: pandeyaws
+          repositories: sample-python-app
         
       - name: checkout with app token
         uses: actions/checkout@v4
