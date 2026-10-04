@@ -2,6 +2,11 @@
 
 A small FastAPI service with a health endpoint, a non-root Docker image, and a Helm chart for AKS.
 
+## Repository layout
+
+- `sample-python-app` contains the application, Dockerfile, and reusable Helm chart.
+- `sample-python-app-argocd` contains the development Helm values and Argo CD application configuration.
+
 ## Run locally
 
 ```powershell
@@ -13,9 +18,9 @@ uvicorn app.main:app --reload --port 8000
 
 Open `http://localhost:8000/` or check `http://localhost:8000/health`.
 
-## Build and push with GitHub Actions
+## Build and publish with GitHub Actions
 
-The workflow in `.github/workflows/build-and-push-acr.yml` builds on pull requests to `main` and pushes an image tagged with the commit SHA on pushes to `main`.
+The workflow in `.github/workflows/build-and-push-acr.yml` builds pull requests to `master`. On each push to `master`, it calculates and creates a SemVer tag (using conventional commit messages to determine the version bump), then publishes the image with both that release tag and the commit SHA. The image is not published for pull requests.
 
 Configure these repository Actions secrets:
 
@@ -25,54 +30,19 @@ Configure these repository Actions secrets:
 
 Configure these repository Actions variables:
 
-- `ACR_NAME`, such as `myregistry`
-- `ACR_LOGIN_SERVER`, such as `myregistry.azurecr.io`
+- `ACR_NAME`, such as `acreusdev01` (the registry resource name, without `.azurecr.io`)
+- `ACR_LOGIN_SERVER`, such as `acreusdev01.azurecr.io`
 
-Configure an Azure federated credential for the GitHub repository with subject `repo:<OWNER>/<REPO>:ref:refs/heads/main`, issuer `https://token.actions.githubusercontent.com`, and audience `api://AzureADTokenExchange`. Grant that identity the `AcrPush` role on the registry. The AKS cluster must also have permission to pull from the registry.
+Create the GitHub Actions environment named `acr-publish`. Configure an Azure federated credential for this repository with subject `repo:<OWNER>/<REPO>:environment:acr-publish`, issuer `https://token.actions.githubusercontent.com`, and audience `api://AzureADTokenExchange`. Grant that identity the `AcrPush` role on the registry. The AKS cluster must also have permission to pull from the registry.
 
-## Build and publish
+Each push to `master` creates the release tag and publishes it. To deploy that release, update the environment's `image.tag` in the infra repository to the generated tag. The tag action uses the conventional commit message to choose the bump (`fix:` for patch, `feat:` for minor, and a `BREAKING CHANGE:` footer for major); otherwise it defaults to patch.
 
-Sign in to Azure and Docker, and replace `<acr-name>` with your Azure Container Registry name:
+The generated tag does not trigger a second workflow run. The image publish job uses the tag output from the version job in the same run.
 
-```powershell
-az acr login --name <acr-name>
-docker build -t <acr-name>.azurecr.io/sample-python-app:v1 .
-docker push <acr-name>.azurecr.io/sample-python-app:v1
-```
-
-Attach the registry to the AKS cluster if it is not already configured:
+To render the chart locally with development settings, clone the infra repository beside this repository and run:
 
 ```powershell
-az aks update --resource-group <resource-group> --name <cluster-name> --attach-acr <acr-name>
-az aks get-credentials --resource-group <resource-group> --name <cluster-name>
+helm template sample-python-app ./helm/sample-python-app `
+	--values ../sample-python-app-argocd/argocd/values/dev.yaml `
+	--namespace default
 ```
-
-Install or upgrade the chart with environment-specific values. For development, use a single replica and an internal `ClusterIP` Service:
-
-```powershell
-helm upgrade --install sample-python-app ./helm/sample-python-app `
-	--values ./helm/sample-python-app/environments/development.yaml `
-	--namespace default `
-	--set image.repository=<acr-name>.azurecr.io/sample-python-app `
-	--set image.tag=v1
-kubectl rollout status deployment/sample-python-app
-kubectl port-forward service/sample-python-app 8080:80
-```
-
-Then open `http://localhost:8080/` or `http://localhost:8080/health`.
-
-For production, use the LoadBalancer Service and production resource settings:
-
-```powershell
-helm upgrade --install sample-python-app ./helm/sample-python-app `
-	--values ./helm/sample-python-app/environments/production.yaml `
-	--namespace default `
-	--set image.repository=<acr-name>.azurecr.io/sample-python-app `
-	--set image.tag=v1
-kubectl rollout status deployment/sample-python-app
-kubectl get service sample-python-app --watch
-```
-
-When the Service has an external IP, open `http://<external-ip>/` or `http://<external-ip>/health`.
-
-To remove the release, run `helm uninstall sample-python-app --namespace default`.

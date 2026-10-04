@@ -1,4 +1,5 @@
 name: Build and push to ACR
+
 on:
   push:
     branches:
@@ -9,10 +10,10 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  build:
+  build-pr:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -21,15 +22,71 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build image for pull request
-        if: github.event_name == 'pull_request'
+      - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
 
+  version:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.existing-tag.outputs.tag || steps.get-version.outputs.new_tag }}
+    steps:
+      - name: Check out source and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find release tag for this commit
+        id: existing-tag
+        run: |
+          tag="$(git tag --points-at "$GITHUB_SHA" --list 'v[0-9]*' | sort -V | tail -n 1)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create release tag
+        if: steps.existing-tag.outputs.tag == ''
+        id: get-version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: v
+          default_bump: patch
+          release_branches: master
+
+      - name: Verify generated tag
+        env:
+          RELEASE_TAG: ${{ steps.existing-tag.outputs.tag || steps.get-version.outputs.new_tag }}
+        run: |
+          test -n "$RELEASE_TAG" || { echo "The version action did not produce a release tag"; exit 1; }
+
+  publish:
+    needs: version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment: acr-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Verify ACR configuration
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+        run: |
+          test -n "$ACR_NAME" || { echo "ACR_NAME is not configured"; exit 1; }
+          test -n "$ACR_LOGIN_SERVER" || { echo "ACR_LOGIN_SERVER is not configured"; exit 1; }
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Sign in to Azure with OIDC
-        if: github.event_name == 'push'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -37,15 +94,23 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Sign in to ACR
-        if: github.event_name == 'push'
         env:
-          ACR_NAME: acreusdev01.azurecr.io
+          ACR_NAME: ${{ vars.ACR_NAME }}
         run: az acr login --name "$ACR_NAME"
 
+      - name: Generate image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.ACR_LOGIN_SERVER }}/sample-python-app
+          tags: |
+            type=raw,value=${{ needs.version.outputs.tag }}
+            type=raw,value=${{ github.sha }}
+
       - name: Build and push image
-        if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: acreusdev01.azurecr.io/sample-python-app:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
