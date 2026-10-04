@@ -13,7 +13,8 @@ permissions:
 
 jobs:
   build-pr:
-    if: github.event_name == 'pull_request'
+    needs: version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -34,22 +35,15 @@ jobs:
     permissions:
       contents: write
     outputs:
-      tag: ${{ steps.existing-tag.outputs.tag || steps.get-version.outputs.new_tag }}
+      tag: ${{ steps.version.outputs.new_tag }}
     steps:
       - name: Check out source and tags
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Find release tag for this commit
-        id: existing-tag
-        run: |
-          tag="$(git tag --points-at "$GITHUB_SHA" --list 'v[0-9]*' | sort -V | tail -n 1)"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-
-      - name: Create release tag
-        if: steps.existing-tag.outputs.tag == ''
-        id: get-version
+      - name: calculate next version tag
+        id: version
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -59,11 +53,17 @@ jobs:
 
       - name: Verify generated tag
         env:
-          RELEASE_TAG: ${{ steps.existing-tag.outputs.tag || steps.get-version.outputs.new_tag }}
+          RELEASE_TAG: ${{ steps.version.outputs.new_tag }}
         run: |
           test -n "$RELEASE_TAG" || { echo "The version action did not produce a release tag"; exit 1; }
 
-  publish:
+      - name: Print version information
+        run: |
+          echo "Previous tag: ${{ steps.version.outputs.previous_tag }}"
+          echo "Next tag: ${{ steps.version.outputs.new_tag }}"
+          echo "Next version: ${{ steps.version.outputs.new_version }}"
+
+  build-and-publish:
     needs: version
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
@@ -114,3 +114,16 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Generate github app token
+        id: generate-token
+        uses: action/github-app-token@v1
+        with:
+          app_id: ${{ vars.GITHUB_APP_ID }}
+          private_key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          repository: sample-python-app
+        
+      - name: checkout with app token
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          fetch-depth: 0 
