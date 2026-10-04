@@ -12,11 +12,9 @@ resources:
     memory: 256Mi
 ingress:
   enabled: true
-  className: ""
-  annotations: {}
   hosts:
     - host: sample-python-app.local
       paths:
         - path: /
           pathType: ImplementationSpecific
-  tls: []    
+    
