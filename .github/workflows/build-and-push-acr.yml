@@ -77,8 +77,8 @@ jobs:
 
       - name: Verify ACR configuration
         env:
-          ACR_NAME: ${{ vars.ACR_NAME }}
-          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+          ACR_NAME: acreusdev01
+          ACR_LOGIN_SERVER: acreusdev01.azurecr.io
         run: |
           test -n "$ACR_NAME" || { echo "ACR_NAME is not configured"; exit 1; }
           test -n "$ACR_LOGIN_SERVER" || { echo "ACR_LOGIN_SERVER is not configured"; exit 1; }
