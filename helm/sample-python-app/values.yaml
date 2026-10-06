@@ -11,7 +11,7 @@ service:
 
 ingress:
   enabled: false
-  className: Ingress
+  className: ingress
   annotations: {}
   tls: []
 
