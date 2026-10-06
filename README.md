@@ -1,6 +1,6 @@
 # Sample Python App for AKS
 
-A small FastAPI service with a health endpoint, a non-root Docker image, and a Helm chart for AKS.
+A small FastAPI application with a built-in web dashboard, JSON status and health endpoints, a non-root Docker image, and a Helm chart for AKS.
 
 ## Repository layout
 
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Open `http://localhost:8000/` or check `http://localhost:8000/health`.
+Open `http://localhost:8000/` for the web dashboard. The application status API is available at `http://localhost:8000/api/status`, and the health check is at `http://localhost:8000/health`.
 
 ## Build and publish with GitHub Actions
 
