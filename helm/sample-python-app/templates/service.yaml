@@ -13,5 +13,3 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: http
       protocol: TCP
-  selector:
-    {{ - include "sample-python-app.selectorLabels" . | nindent 4 }}
