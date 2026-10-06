@@ -11,7 +11,7 @@ service:
 
 ingress:
   enabled: false
-  className: nginx
+  className: treafik
   annotations: {}
   tls: []
 
