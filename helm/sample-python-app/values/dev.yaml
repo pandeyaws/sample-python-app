@@ -14,7 +14,7 @@ resources:
 ingress:
   enabled: true
   hosts:
-    - host: sample-python-app-services-dev.privatelink.eastus.azmk8s.io
+    - host: sample-python-app-services-dev.local
       paths:
         - path: /
           pathType: Prefix
