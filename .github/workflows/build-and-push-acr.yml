@@ -132,7 +132,7 @@ jobs:
           
   deploy-to-dev:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     environment: development
     permissions:
