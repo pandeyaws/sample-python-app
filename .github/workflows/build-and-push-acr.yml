@@ -138,6 +138,7 @@ jobs:
           argocd_password: ${{ secrets.ARGOCD_PASSWORD }}
           parent_app: "apps-sample-python-app"
           child_app: "sample-python-app-dev"
+          app_id: ${{ vars.APP_ID }}
            
 
       # - name: checkout external repo with app token
