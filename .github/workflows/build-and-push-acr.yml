@@ -143,6 +143,7 @@ jobs:
           owner: pandeyaws
           repositories: sample-python-app-argocd
           permission-contents: write
+          TARGET_REVISION: ${{ needs.version.outputs.tag }}
            
 
       # - name: checkout external repo with app token
