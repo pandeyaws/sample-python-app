@@ -190,7 +190,7 @@ jobs:
           argocd login 57.151.50.28:80 \
             --username admin \
             --password "$ARGOCD_PASSWORD" \
-            --plaintext \
+            --insecure \
             --grpc-web
 
       - name: Sync Parent App
