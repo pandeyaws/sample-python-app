@@ -27,6 +27,7 @@ Configure these repository Actions secrets:
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
+- `ARGOCD_REPO_TOKEN` — a fine-grained personal access token with Contents read/write access to `pandeyaws/sample-python-app-argocd`.
 
 Configure these repository Actions variables:
 
@@ -35,7 +36,7 @@ Configure these repository Actions variables:
 
 Create the GitHub Actions environment named `acr-publish`. Configure an Azure federated credential for this repository with subject `repo:<OWNER>/<REPO>:environment:acr-publish`, issuer `https://token.actions.githubusercontent.com`, and audience `api://AzureADTokenExchange`. Grant that identity the `AcrPush` role on the registry. The AKS cluster must also have permission to pull from the registry.
 
-Each push to `master` creates the release tag and publishes it. To deploy that release, update the environment's `image.tag` in the infra repository to the generated tag. The tag action uses the conventional commit message to choose the bump (`fix:` for patch, `feat:` for minor, and a `BREAKING CHANGE:` footer for major); otherwise it defaults to patch.
+Each push to `master` creates the release tag and publishes it. The workflow then updates the dev ApplicationSet's `targetRevision` in `pandeyaws/sample-python-app-argocd` to that tag and pushes the change to `master`. The ApplicationSet uses this revision for the Helm chart and image tag, and Argo CD's automated sync deploys it. The tag action uses the conventional commit message to choose the bump (`fix:` for patch, `feat:` for minor, and a `BREAKING CHANGE:` footer for major); otherwise it defaults to patch.
 
 The generated tag does not trigger a second workflow run. The image publish job uses the tag output from the version job in the same run.
 
