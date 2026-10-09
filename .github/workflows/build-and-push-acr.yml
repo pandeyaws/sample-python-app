@@ -185,7 +185,7 @@ jobs:
 
       - name: Login to ArgoCD
         run: |
-          argocd login 'https://57.151.50.28/' \
+          argocd login 'http://57.151.50.28/' \
             --username admin \
             --password ${{ secrets.ARGOCD_PASSWORD }} \
             --insecure
