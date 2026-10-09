@@ -175,3 +175,28 @@ jobs:
           fi
           git -C argocd-config commit -m "chore: deploy sample-python-app ${TARGET_REVISION}"
           git -C argocd-config push origin HEAD:master
+      # - name: Trigger ArgoCD sync
+      #   uses: argoproj/argocd-actions@v2
+      #   with:
+      #     argocd_server: 'https://57.151.50.28/'
+      #     argocd_auth_token: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+      #     app_name: sample-python-app
+      #     operation_sync: true    
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login 'https://57.151.50.28/' \
+            --username admin \
+            --password ${{ secrets.ARGOCD_PASSWORD }} \
+            --insecure
+
+      - name: Sync Parent App
+        run: |
+          argocd app sync apps-sample-python-app
+          argocd app wait apps-sample-python-app --health --sync
+
+      - name: Sync Child Apps
+        run: |
+          argocd app sync sample-python-app-dev
+          argocd app sync cert-manager
+          argocd app sync external-secrets    
