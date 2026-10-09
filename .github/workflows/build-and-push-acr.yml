@@ -200,6 +200,6 @@ jobs:
 
       - name: Sync Child Apps
         run: |
-          argocd app sync sample-python-app-dev
+          argocd app wait sample-python-app-dev --sync --health --timeout 600
           argocd app sync cert-manager
           argocd app sync external-secrets    
