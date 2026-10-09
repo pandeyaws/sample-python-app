@@ -129,77 +129,86 @@ jobs:
           owner: pandeyaws
           repositories: sample-python-app-argocd
           permission-contents: write
-
-      - name: checkout external repo with app token
-        uses: actions/checkout@v4
+      - name: argocd sync
+        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@main
         with:
-          repository: pandeyaws/sample-python-app-argocd
-          ref: master
-          path: argocd-config
-          token: ${{ steps.argocd_token.outputs.token }}
-          fetch-depth: 0
+          argocd_server: "57.151.50.28:80"
+          argocd_username: "admin"
+          argocd_password: ${{ secrets.ARGOCD_PASSWORD }}
+          parent_app: "apps-sample-python-app"
+          child_app: "sample-python-app-dev"
+           
 
-      - name: update image tag in argocd repo
-        env:
-          TARGET_REVISION: ${{ needs.version.outputs.tag }}
-        run: |
-          python - <<'PY'
-          import os
-          import re
-          from pathlib import Path
+      # - name: checkout external repo with app token
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: pandeyaws/sample-python-app-argocd
+      #     ref: master
+      #     path: argocd-config
+      #     token: ${{ steps.argocd_token.outputs.token }}
+      #     fetch-depth: 0
 
-          appset = Path("argocd-config/argocd/sample-python-app-appset.yaml")
-          text = appset.read_text(encoding="utf-8")
-          pattern = re.compile(r"(?m)^([ \t]*targetRevision:[ \t]*)v[^\s'\"]+([ \t]*)$")
-          updated, count = pattern.subn(
-              lambda match: f"{match.group(1)}{os.environ['TARGET_REVISION']}{match.group(2)}",
-              text,
-          )
-          if count != 1:
-              raise SystemExit(
-                  f"Expected exactly one literal targetRevision in {appset}, found {count}"
-              )
-          appset.write_text(updated, encoding="utf-8")
-          PY
+      # - name: update image tag in argocd repo
+      #   env:
+      #     TARGET_REVISION: ${{ needs.version.outputs.tag }}
+      #   run: |
+      #     python - <<'PY'
+      #     import os
+      #     import re
+      #     from pathlib import Path
 
-      - name: Commit and push ApplicationSet update
-        env:
-          TARGET_REVISION: ${{ needs.version.outputs.tag }}
-        run: |
-          git -C argocd-config config user.name "github-actions[bot]"
-          git -C argocd-config config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C argocd-config add argocd/sample-python-app-appset.yaml
-          if git -C argocd-config diff --cached --quiet; then
-            echo "ApplicationSet already targets ${TARGET_REVISION}; no commit needed."
-            exit 0
-          fi
-          git -C argocd-config commit -m "chore: deploy sample-python-app ${TARGET_REVISION}"
-          git -C argocd-config push origin HEAD:master
-      - name: Install ArgoCD CLI
-        run: |
-          curl --fail --show-error --location --retry 3 \
-            --output /tmp/argocd \
-            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo install -m 555 /tmp/argocd /usr/local/bin/argocd
-          argocd version --client
+      #     appset = Path("argocd-config/argocd/sample-python-app-appset.yaml")
+      #     text = appset.read_text(encoding="utf-8")
+      #     pattern = re.compile(r"(?m)^([ \t]*targetRevision:[ \t]*)v[^\s'\"]+([ \t]*)$")
+      #     updated, count = pattern.subn(
+      #         lambda match: f"{match.group(1)}{os.environ['TARGET_REVISION']}{match.group(2)}",
+      #         text,
+      #     )
+      #     if count != 1:
+      #         raise SystemExit(
+      #             f"Expected exactly one literal targetRevision in {appset}, found {count}"
+      #         )
+      #     appset.write_text(updated, encoding="utf-8")
+      #     PY
 
-      - name: Login to ArgoCD
-        env:
-          ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
-        run: |
-          argocd login 57.151.50.28:80 \
-            --username admin \
-            --password "$ARGOCD_PASSWORD" \
-            --insecure \
-            --grpc-web
+      # - name: Commit and push ApplicationSet update
+      #   env:
+      #     TARGET_REVISION: ${{ needs.version.outputs.tag }}
+      #   run: |
+      #     git -C argocd-config config user.name "github-actions[bot]"
+      #     git -C argocd-config config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      #     git -C argocd-config add argocd/sample-python-app-appset.yaml
+      #     if git -C argocd-config diff --cached --quiet; then
+      #       echo "ApplicationSet already targets ${TARGET_REVISION}; no commit needed."
+      #       exit 0
+      #     fi
+      #     git -C argocd-config commit -m "chore: deploy sample-python-app ${TARGET_REVISION}"
+      #     git -C argocd-config push origin HEAD:master
+      # - name: Install ArgoCD CLI
+      #   run: |
+      #     curl --fail --show-error --location --retry 3 \
+      #       --output /tmp/argocd \
+      #       https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      #     sudo install -m 555 /tmp/argocd /usr/local/bin/argocd
+      #     argocd version --client
 
-      - name: Sync Parent App
-        run: |
-          argocd app sync apps-sample-python-app
-          argocd app wait apps-sample-python-app --health --sync
+      # - name: Login to ArgoCD
+      #   env:
+      #     ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
+      #   run: |
+      #     argocd login 57.151.50.28:80 \
+      #       --username admin \
+      #       --password "$ARGOCD_PASSWORD" \
+      #       --insecure \
+      #       --grpc-web
 
-      - name: Sync Child Apps
-        run: |
-          argocd app wait sample-python-app-dev --sync --health --timeout 600
-          argocd app sync cert-manager
-          argocd app sync external-secrets    
+      # - name: Sync Parent App
+      #   run: |
+      #     argocd app sync apps-sample-python-app
+      #     argocd app wait apps-sample-python-app --health --sync
+
+      # - name: Sync Child Apps
+      #   run: |
+      #     argocd app wait sample-python-app-dev --sync --health --timeout 600
+      #     argocd app sync cert-manager
+      #     argocd app sync external-secrets    
