@@ -177,7 +177,11 @@ jobs:
           git -C argocd-config push origin HEAD:master
       - name: Install ArgoCD CLI
         run: |
-          curl -sSL -o /tmp/argocd
+          curl --fail --show-error --location --retry 3 \
+            --output /tmp/argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 /tmp/argocd /usr/local/bin/argocd
+          argocd version --client
 
       - name: Login to ArgoCD
         run: |
