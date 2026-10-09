@@ -40,7 +40,7 @@ jobs:
           echo "Next tag: ${{ steps.version.outputs.new_tag }}"
           echo "Next version: ${{ steps.version.outputs.new_version }}"
 
-  build-and-publish:
+  build:
     env:
           ACR_NAME: acreusdev01
           ACR_LOGIN_SERVER: acreusdev01.azurecr.io
@@ -129,84 +129,107 @@ jobs:
           owner: pandeyaws
           repositories: sample-python-app-argocd
           permission-contents: write
-
-      - name: Check out Argo CD configuration
-        uses: actions/checkout@v4
+          
+  deploy-to-dev:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      contents: read
+      id-token: write  
+    steps:
+      - name: Sync ArgoCD apps
+        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@master
         with:
-          repository: pandeyaws/sample-python-app-argocd
-          ref: master
-          path: argocd-config
-          token: ${{ steps.argocd_token.outputs.token }}
-          fetch-depth: 0
+          app_id: ${{ vars.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          target_revision: ${{ needs.version.outputs.tag }}
+          argocd_server: ${{ vars.ARGOCD_SERVER }}
+          argocd_username: admin
+          argocd_password: ${{ secrets.ARGOCD_PASSWORD }}
+          parent_app: apps-sample-python-app
+          child_app: sample-python-app-dev
+          cert_manager_app: cert-manager
+          external-secrets: external-secrets
 
-      - name: Update dev ApplicationSet target revision
-        env:
-          TARGET_REVISION: ${{ needs.version.outputs.tag }}
-        run: |
-          python - <<'PY'
-          import os
-          import re
-          from pathlib import Path
+      # - name: Check out Argo CD configuration
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: pandeyaws/sample-python-app-argocd
+      #     ref: master
+      #     path: argocd-config
+      #     token: ${{ steps.argocd_token.outputs.token }}
+      #     fetch-depth: 0
 
-          target_revision = os.environ["TARGET_REVISION"]
-          if not re.fullmatch(r"v\d+\.\d+\.\d+", target_revision):
-              raise SystemExit(f"Unexpected release tag: {target_revision!r}")
+      # - name: Update dev ApplicationSet target revision
+      #   env:
+      #     TARGET_REVISION: ${{ needs.version.outputs.tag }}
+      #   run: |
+      #     python - <<'PY'
+      #     import os
+      #     import re
+      #     from pathlib import Path
 
-          appset = Path("argocd-config/argocd/sample-python-app-appset.yaml")
-          text = appset.read_text(encoding="utf-8")
-          pattern = re.compile(
-              r"(?m)^([ \t]*-[ \t]*environment:[ \t]*dev[ \t]*\r?\n"
-              r"[ \t]*targetRevision:[ \t]*)([^\r\n]*)"
-          )
-          updated, count = pattern.subn(
-              lambda match: f"{match.group(1)}{target_revision}", text
-          )
-          if count != 1:
-              raise SystemExit(
-                  f"Expected exactly one dev environment targetRevision in {appset}, found {count}"
-              )
-          appset.write_text(updated, encoding="utf-8")
-          PY
+      #     target_revision = os.environ["TARGET_REVISION"]
+      #     if not re.fullmatch(r"v\d+\.\d+\.\d+", target_revision):
+      #         raise SystemExit(f"Unexpected release tag: {target_revision!r}")
 
-      - name: Commit and push ApplicationSet update
-        env:
-          TARGET_REVISION: ${{ needs.version.outputs.tag }}
-        run: |
-          git -C argocd-config config user.name "github-actions[bot]"
-          git -C argocd-config config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C argocd-config add argocd/sample-python-app-appset.yaml
-          if git -C argocd-config diff --cached --quiet; then
-            echo "ApplicationSet already targets ${TARGET_REVISION}; no commit needed."
-            exit 0
-          fi
-          git -C argocd-config commit -m "chore: deploy sample-python-app ${TARGET_REVISION}"
-          git -C argocd-config push origin HEAD:master
+      #     appset = Path("argocd-config/argocd/sample-python-app-appset.yaml")
+      #     text = appset.read_text(encoding="utf-8")
+      #     pattern = re.compile(
+      #         r"(?m)^([ \t]*-[ \t]*environment:[ \t]*dev[ \t]*\r?\n"
+      #         r"[ \t]*targetRevision:[ \t]*)([^\r\n]*)"
+      #     )
+      #     updated, count = pattern.subn(
+      #         lambda match: f"{match.group(1)}{target_revision}", text
+      #     )
+      #     if count != 1:
+      #         raise SystemExit(
+      #             f"Expected exactly one dev environment targetRevision in {appset}, found {count}"
+      #         )
+      #     appset.write_text(updated, encoding="utf-8")
+      #     PY
 
-      - name: Install Argo CD CLI
-        shell: bash
-        run: |
-          curl --fail --show-error --location --retry 3 \
-            --output /tmp/argocd \
-            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo install -m 555 /tmp/argocd /usr/local/bin/argocd
-          argocd version --client
+      # - name: Commit and push ApplicationSet update
+      #   env:
+      #     TARGET_REVISION: ${{ needs.version.outputs.tag }}
+      #   run: |
+      #     git -C argocd-config config user.name "github-actions[bot]"
+      #     git -C argocd-config config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      #     git -C argocd-config add argocd/sample-python-app-appset.yaml
+      #     if git -C argocd-config diff --cached --quiet; then
+      #       echo "ApplicationSet already targets ${TARGET_REVISION}; no commit needed."
+      #       exit 0
+      #     fi
+      #     git -C argocd-config commit -m "chore: deploy sample-python-app ${TARGET_REVISION}"
+      #     git -C argocd-config push origin HEAD:master
 
-      - name: Login to Argo CD
-        shell: bash
-        env:
-          ARGOCD_SERVER: 57.151.50.28:80
-          ARGOCD_USERNAME: admin
-          ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
-        run: |
-          argocd login "$ARGOCD_SERVER" \
-            --username "$ARGOCD_USERNAME" \
-            --password "$ARGOCD_PASSWORD" \
-            --insecure \
-            --grpc-web
+      # - name: Install Argo CD CLI
+      #   shell: bash
+      #   run: |
+      #     curl --fail --show-error --location --retry 3 \
+      #       --output /tmp/argocd \
+      #       https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      #     sudo install -m 555 /tmp/argocd /usr/local/bin/argocd
+      #     argocd version --client
 
-      - name: Sync parent and wait for child application
-        shell: bash
-        run: |
-          argocd app sync apps-sample-python-app
-          argocd app wait apps-sample-python-app --health --sync
-          argocd app wait sample-python-app-dev --sync --health --timeout 600
+      # - name: Login to Argo CD
+      #   shell: bash
+      #   env:
+      #     ARGOCD_SERVER: 57.151.50.28:80
+      #     ARGOCD_USERNAME: admin
+      #     ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
+      #   run: |
+      #     argocd login "$ARGOCD_SERVER" \
+      #       --username "$ARGOCD_USERNAME" \
+      #       --password "$ARGOCD_PASSWORD" \
+      #       --insecure \
+      #       --grpc-web
+
+      # - name: Sync parent and wait for child application
+      #   shell: bash
+      #   run: |
+      #     argocd app sync apps-sample-python-app
+      #     argocd app wait apps-sample-python-app --health --sync
+      #     argocd app wait sample-python-app-dev --sync --health --timeout 600
