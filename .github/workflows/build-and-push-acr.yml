@@ -129,8 +129,9 @@ jobs:
           owner: pandeyaws
           repositories: sample-python-app-argocd
           permission-contents: write
+
       - name: argocd sync
-        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@main
+        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@master
         with:
           argocd_server: "57.151.50.28:80"
           argocd_username: "admin"
