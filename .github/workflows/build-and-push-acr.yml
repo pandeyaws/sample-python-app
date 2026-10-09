@@ -145,14 +145,19 @@ jobs:
           app_id: ${{ vars.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
           target_revision: ${{ needs.version.outputs.tag }}
+          repo_owner: pandeyaws
+          repo_name: sample-python-app-argocd
+          branch: master
+          appset_path: argocd/sample-python-app-appset.yaml
+          environment_name: dev
           argocd_server: ${{ vars.ARGOCD_SERVER }}
           argocd_username: admin
-          argocd_password: ${{ secrets.ARGOCD_PASSWORD }}
+          argocd_password: ${{ secrets.ARGOCD_PASSWORD }}          
           parent_app: apps-sample-python-app
           child_app: sample-python-app-dev
           cert_manager_app: cert-manager
           external-secrets: external-secrets
-
+          
       # - name: Check out Argo CD configuration
       #   uses: actions/checkout@v4
       #   with:
