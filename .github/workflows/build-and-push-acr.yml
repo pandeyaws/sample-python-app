@@ -44,7 +44,7 @@ jobs:
     env:
           ACR_NAME: acreusdev01
           ACR_LOGIN_SERVER: acreusdev01.azurecr.io
-    #needs: version
+    needs: version
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: development
@@ -88,7 +88,7 @@ jobs:
         with:
           images: ${{ env.ACR_LOGIN_SERVER }}/sample-python-app
           tags: |
-            type=raw,value=${{ steps.version.outputs.new_tag }}
+            type=raw,value=${{ needs.version.outputs.tag }}
             type=raw,value=${{ github.sha }}
 
       - name: Build and push image
@@ -117,8 +117,61 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag ${{ steps.version.outputs.new_tag }}
-          git push origin ${{ steps.version.outputs.new_tag }} 
+          git tag ${{ needs.version.outputs.tag }}
+          git push origin ${{ needs.version.outputs.tag }}
 
+      - name: Generate github apps token
+        id: argocd_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app_id: ${{ vars.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: pandeyaws
+          repositories: sample-python-app-argocd
+          permission-contents: write
 
-      
+      - name: checkout external repo with app token
+        uses: actions/checkout@v4
+        with:
+          repository: pandeyaws/sample-python-app-argocd
+          ref: master
+          path: argocd-config
+          token: ${{ steps.argocd_token.outputs.token }}
+          fetch-depth: 0
+
+      - name: update image tag in argocd repo
+        env:
+          TARGET_REVISION: ${{ needs.version.outputs.tag }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          appset = Path("argocd-config/argocd/sample-python-app-appset.yaml")
+          text = appset.read_text(encoding="utf-8")
+          pattern = re.compile(r"(?m)^([ \t]*targetRevision:[ \t]*)v[^\s'\"]+([ \t]*)$")
+          updated, count = pattern.subn(
+              lambda match: f"{match.group(1)}{os.environ['TARGET_REVISION']}{match.group(2)}",
+              text,
+          )
+          if count != 1:
+              raise SystemExit(
+                  f"Expected exactly one literal targetRevision in {appset}, found {count}"
+              )
+          appset.write_text(updated, encoding="utf-8")
+          PY
+
+      - name: Commit and push ApplicationSet update
+        env:
+          TARGET_REVISION: ${{ needs.version.outputs.tag }}
+        run: |
+          git -C argocd-config config user.name "github-actions[bot]"
+          git -C argocd-config config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C argocd-config add argocd/sample-python-app-appset.yaml
+          if git -C argocd-config diff --cached --quiet; then
+            echo "ApplicationSet already targets ${TARGET_REVISION}; no commit needed."
+            exit 0
+          fi
+          git -C argocd-config commit -m "chore: deploy sample-python-app ${TARGET_REVISION}"
+          git -C argocd-config push origin HEAD:master
