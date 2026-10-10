@@ -18,6 +18,17 @@ uvicorn app.main:app --reload --port 8000
 
 Open `http://localhost:8000/` for the web dashboard. The application status API is available at `http://localhost:8000/api/status`, and the health check is at `http://localhost:8000/health`.
 
+## Run tests
+
+Install the development and test dependencies, then run the test suite:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
+
+GitHub Actions runs the same test command before building and publishing the Docker image.
+
 ## Build and publish with GitHub Actions
 
 The workflow in `.github/workflows/build-and-push-acr.yml` builds pull requests to `master`. On each push to `master`, it calculates and creates a SemVer tag (using conventional commit messages to determine the version bump), then publishes the image with both that release tag and the commit SHA. The image is not published for pull requests.
