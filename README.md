@@ -20,10 +20,10 @@ Open `http://localhost:8000/` for the web dashboard. The application status API 
 
 ## Run tests
 
-Install the development and test dependencies, then run the test suite:
+Install the application and test dependencies, then run the test suite:
 
 ```powershell
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements.txt 'httpx2>=2.0.0,<3.0.0' 'pytest>=8.0.0,<10.0.0'
 python -m pytest
 ```
 
