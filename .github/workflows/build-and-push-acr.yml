@@ -99,6 +99,16 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.ACR_LOGIN_SERVER }}/sample-python-app:${{ needs.version.outputs.tag }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
       - name: Generate github apps token
         id: generate_token
         uses: actions/create-github-app-token@v1
