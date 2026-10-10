@@ -18,6 +18,17 @@ uvicorn app.main:app --reload --port 8000
 
 Open `http://localhost:8000/` for the web dashboard. The application status API is available at `http://localhost:8000/api/status`, and the health check is at `http://localhost:8000/health`.
 
+## Run tests
+
+Install the application and test dependencies, then run the test suite:
+
+```powershell
+python -m pip install -r requirements.txt 'httpx2>=2.0.0,<3.0.0' 'pytest>=8.0.0,<10.0.0' 'pytest-cov>=5.0.0,<8.0.0'
+python -m pytest --junitxml=test-results.xml --cov=app --cov-fail-under=80 --cov-report=xml:coverage.xml --cov-report=term-missing
+```
+
+The command prints coverage in the terminal and writes JUnit results to `test-results.xml` and coverage details to `coverage.xml`. It fails if application coverage is below 80%. GitHub Actions runs the same command before building the image, then uploads those reports and `tests/test_main.py` as the `python-test-artifacts` artifact (retained for 14 days), even when tests fail. Download it from the workflow run's **Artifacts** section.
+
 ## Build and publish with GitHub Actions
 
 The workflow in `.github/workflows/build-and-push-acr.yml` builds pull requests to `master`. On each push to `master`, it calculates and creates a SemVer tag (using conventional commit messages to determine the version bump), then publishes the image with both that release tag and the commit SHA. The image is not published for pull requests.

@@ -9,8 +9,7 @@ on:
       - master
 
 permissions:
-  contents: write
-
+  contents: read
 jobs:
   version:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -41,9 +40,6 @@ jobs:
           echo "Next version: ${{ steps.version.outputs.new_version }}"
 
   build:
-    env:
-          ACR_NAME: acreusdev01
-          ACR_LOGIN_SERVER: acreusdev01.azurecr.io
     needs: version
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
@@ -52,52 +48,19 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false  
-
-      - name: Verify ACR configuration        
-        run: |
-          test -n "$ACR_NAME" || { echo "ACR_NAME is not configured"; exit 1; }
-          test -n "$ACR_LOGIN_SERVER" || { echo "ACR_LOGIN_SERVER is not configured"; exit 1; }
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Sign in to Azure with OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Sign in to ACR
-        run: az acr login --name "$ACR_NAME"
-
-      - name: Generate image tags
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.ACR_LOGIN_SERVER }}/sample-python-app
-          tags: |
-            type=raw,value=${{ needs.version.outputs.tag }}
-            type=raw,value=${{ github.sha }}
-
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: pandeyaws/shared-templates/.github/actions/build/python@master
         with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          python-version: "3.12"
+          enable-tests: "true"
+          acr_name: acreusdev01
+          acr_login_server: acreusdev01.azurecr.io
+          image_name: my-python-app
+          image_tag: ${{ needs.version.outputs.tag }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          
 
       - name: Generate github apps token
         id: generate_token
@@ -112,6 +75,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.generate_token.outputs.token }}
+
       - name: create and push release tag
         shell: pwsh
         run: |
@@ -130,7 +94,7 @@ jobs:
           repositories: sample-python-app-argocd
           permission-contents: write
           
-  deploy-to-dev:
+  deploy-to-dev:    
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: [version, build]
     runs-on: ubuntu-latest
