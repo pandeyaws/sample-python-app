@@ -23,11 +23,11 @@ Open `http://localhost:8000/` for the web dashboard. The application status API 
 Install the application and test dependencies, then run the test suite:
 
 ```powershell
-python -m pip install -r requirements.txt 'httpx2>=2.0.0,<3.0.0' 'pytest>=8.0.0,<10.0.0'
-python -m pytest
+python -m pip install -r requirements.txt 'httpx2>=2.0.0,<3.0.0' 'pytest>=8.0.0,<10.0.0' 'pytest-cov>=5.0.0,<8.0.0'
+python -m pytest --junitxml=test-results.xml --cov=app --cov-fail-under=80 --cov-report=xml:coverage.xml --cov-report=term-missing
 ```
 
-GitHub Actions runs the same test command before building and publishing the Docker image.
+The command prints coverage in the terminal and writes JUnit results to `test-results.xml` and coverage details to `coverage.xml`. It fails if application coverage is below 80%. GitHub Actions runs the same command before building the image, then uploads those reports and `tests/test_main.py` as the `python-test-artifacts` artifact (retained for 14 days), even when tests fail. Download it from the workflow run's **Artifacts** section.
 
 ## Build and publish with GitHub Actions
 

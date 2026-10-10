@@ -63,10 +63,22 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: python -m pip install -r requirements.txt "httpx2>=2.0.0,<3.0.0" "pytest>=8.0.0,<10.0.0"
+        run: python -m pip install -r requirements.txt "httpx2>=2.0.0,<3.0.0" "pytest>=8.0.0,<10.0.0" "pytest-cov>=5.0.0,<8.0.0"
 
       - name: Run tests
-        run: python -m pytest
+        run: python -m pytest --junitxml=test-results.xml --cov=app --cov-fail-under=80 --cov-report=xml:coverage.xml --cov-report=term-missing
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-test-artifacts
+          path: |
+            test-results.xml
+            coverage.xml
+            tests/test_main.py
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
