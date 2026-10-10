@@ -102,7 +102,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Scan image for vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: ${{ env.ACR_LOGIN_SERVER }}/sample-python-app:${{ needs.version.outputs.tag }}
           format: table
