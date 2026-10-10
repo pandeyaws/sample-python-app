@@ -3,18 +3,16 @@ name: Build and push to ACR
 on:
   push:
     branches:
-      - feature/alok
+      - master
   pull_request:
     branches:
       - master
 
 permissions:
-  contents: write
-
+  contents: read
 jobs:
   version:
-    #if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    if: github.event_name == 'push' 
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -42,12 +40,8 @@ jobs:
           echo "Next version: ${{ steps.version.outputs.new_version }}"
 
   build:
-    env:
-          ACR_NAME: acreusdev01
-          ACR_LOGIN_SERVER: acreusdev01.azurecr.io
     needs: version
-    if: github.event_name == 'push' 
-    #if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: development
     permissions:
@@ -55,7 +49,7 @@ jobs:
       id-token: write
     steps:
       - name: Build and push image
-        uses: pandeyaws/shared-templates/.github/actions/build/python@feature/alok
+        uses: pandeyaws/shared-templates/.github/actions/build/python@master
         with:
           python-version: "3.12"
           enable-tests: "true"
@@ -67,86 +61,6 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           
-
-      # - name: Check out source
-      #   uses: actions/checkout@v4
-
-      # - name: Set up Python
-      #   uses: actions/setup-python@v5
-      #   with:
-      #     python-version: "3.12"
-
-      # - name: Install test dependencies
-      #   run: python -m pip install -r requirements.txt "httpx2>=2.0.0,<3.0.0" "pytest>=8.0.0,<10.0.0" "pytest-cov>=5.0.0,<8.0.0"
-
-      # - name: Run tests
-      #   run: python -m pytest --junitxml=test-results.xml --cov=app --cov-fail-under=80 --cov-report=xml:coverage.xml --cov-report=term-missing
-
-      # - name: Upload test artifacts
-      #   if: always()
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: python-test-artifacts
-      #     path: |
-      #       test-results.xml
-      #       coverage.xml
-      #       tests/test_main.py
-      #     if-no-files-found: error
-      #     retention-days: 14
-
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
-
-      # - name: Build image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: .
-      #     push: false  
-
-      # - name: Verify ACR configuration        
-      #   run: |
-      #     test -n "$ACR_NAME" || { echo "ACR_NAME is not configured"; exit 1; }
-      #     test -n "$ACR_LOGIN_SERVER" || { echo "ACR_LOGIN_SERVER is not configured"; exit 1; }
-
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
-
-      # - name: Sign in to Azure with OIDC
-      #   uses: azure/login@v2
-      #   with:
-      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      # - name: Sign in to ACR
-      #   run: az acr login --name "$ACR_NAME"
-
-      # - name: Generate image tags
-      #   id: meta
-      #   uses: docker/metadata-action@v5
-      #   with:
-      #     images: ${{ env.ACR_LOGIN_SERVER }}/sample-python-app
-      #     tags: |
-      #       type=raw,value=${{ needs.version.outputs.tag }}
-      #       type=raw,value=${{ github.sha }}
-
-      # - name: Build and push image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: .
-      #     push: true
-      #     tags: ${{ steps.meta.outputs.tags }}
-      #     labels: ${{ steps.meta.outputs.labels }}
-
-      # - name: Scan image for vulnerabilities
-      #   uses: aquasecurity/trivy-action@v0.36.0
-      #   with:
-      #     image-ref: ${{ env.ACR_LOGIN_SERVER }}/sample-python-app:${{ needs.version.outputs.tag }}
-      #     format: table
-      #     exit-code: '1'
-      #     ignore-unfixed: true
-      #     vuln-type: os,library
-      #     severity: CRITICAL,HIGH
 
       - name: Generate github apps token
         id: generate_token
@@ -180,9 +94,8 @@ jobs:
           repositories: sample-python-app-argocd
           permission-contents: write
           
-  deploy-to-dev:
-    if: github.event_name == 'push' 
-    #if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+  deploy-to-dev:    
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: [version, build]
     runs-on: ubuntu-latest
     environment: development
