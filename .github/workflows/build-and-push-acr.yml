@@ -3,7 +3,7 @@ name: Build and push to ACR
 on:
   push:
     branches:
-      - master
+      - feature/alok
   pull_request:
     branches:
       - master
