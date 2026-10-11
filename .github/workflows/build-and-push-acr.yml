@@ -49,7 +49,7 @@ jobs:
       id-token: write
     steps:
       - name: Build and push image
-        uses: pandeyaws/shared-templates/.github/actions/build/python@master
+        uses: pandeyaws/shared-templates/.github/actions/build/python@v1.0.1
         with:
           python-version: "3.12"
           enable-tests: "true"
@@ -104,7 +104,7 @@ jobs:
       id-token: write  
     steps:
       - name: Sync ArgoCD apps
-        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@master
+        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@v1.0.1
         with:
           app_id: ${{ vars.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
