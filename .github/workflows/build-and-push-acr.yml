@@ -38,7 +38,7 @@ jobs:
           echo "Previous tag: ${{ steps.version.outputs.previous_tag }}"
           echo "Next tag: ${{ steps.version.outputs.new_tag }}"
           echo "Next version: ${{ steps.version.outputs.new_version }}"
-          
+
 
   build:
     needs: version
@@ -56,7 +56,7 @@ jobs:
           enable-tests: "true"
           acr_name: acreusdev01
           acr_login_server: acreusdev01.azurecr.io
-          image_name: my-python-app
+          image_name: sample-python-app
           image_tag: ${{ needs.version.outputs.tag }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
