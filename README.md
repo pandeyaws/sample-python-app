@@ -54,56 +54,7 @@ transition from a built release to the workloads running in AKS:
 | `pandeyaws/sample-python-app-argocd` | ApplicationSet that generates the `dev` and `prd` child Applications. Each environment's `targetRevision` selects the revision of this repository used for its Helm chart and image. |
 | `pandeyaws/scf-k8s-argocd` | Argo CD parent Application and the `apps-sample-python-app` AppProject, which scopes the Argo CD applications and their access. |
 
-```mermaid
-flowchart TD
-    Change[Change merged to master] --> Version[Calculate release tag]
-    Version --> Tests[Run tests and build container image]
-    Tests --> PushImage[Push version-tagged image]
-    Tests --> PushTag[Push release tag to app repository]
-    PushImage --> ACR[(Azure Container Registry)]
-
-    subgraph AppRepo[sample-python-app repository]
-        Source[FastAPI source]
-        Chart[Helm chart and environment values]
-        Source --> Chart
-    end
-    PushTag -. tags source and chart revision .-> Source
-
-    subgraph ConfigRepo[sample-python-app-argocd repository]
-        AppSet[ApplicationSet]
-        DevRevision[dev targetRevision]
-        PrdRevision[prd targetRevision]
-        AppSet --> DevRevision
-        AppSet --> PrdRevision
-    end
-
-    subgraph PlatformRepo[scf-k8s-argocd repository]
-        Parent[Parent Application]
-        Project[apps-sample-python-app AppProject]
-    end
-    Parent -->|manages| AppSet
-
-    PushImage --> UpdateDev[Set dev targetRevision to release tag]
-    PushTag --> UpdateDev
-    UpdateDev --> DevRevision
-    DevRevision --> DevApp[Generate sample-python-app-dev]
-    Project -. scopes .-> DevApp
-    Chart -->|chart and values at targetRevision| DevApp
-    DevApp -->|Argo CD sync| DevCluster[Deploy to dev cluster]
-    ACR -->|cluster pulls matching image tag| DevCluster
-    DevCluster --> DevHealth{Dev healthy?}
-
-    DevHealth -->|Yes| UpdatePrd[Set prd targetRevision to release tag]
-    DevHealth -->|No: stop promotion| Stop[Production remains unchanged]
-    UpdatePrd --> PrdRevision
-    PrdRevision --> PrdApp[Generate sample-python-app-prd]
-    Project -. scopes .-> PrdApp
-    Chart -->|chart and values at targetRevision| PrdApp
-    PrdApp -->|Argo CD sync| PrdCluster[Deploy to production cluster]
-    ACR -->|cluster pulls matching image tag| PrdCluster
-    PrdCluster --> PrdHealth{Production healthy?}
-    PrdHealth -->|Yes| Release[Create GitHub release]
-```
+![Application deployment flow](docs/application-deployment.svg)
 
 On a push to `master`, GitHub Actions calculates a release tag, tests the
 application, builds and pushes the image with that tag, and pushes the tag to
