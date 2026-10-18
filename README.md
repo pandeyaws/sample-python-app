@@ -1,60 +1,164 @@
 # Sample Python App for AKS
 
-A small FastAPI application with a built-in web dashboard, JSON status and health endpoints, a non-root Docker image, and a Helm chart for AKS.
+A small FastAPI application packaged as a non-root Docker image and deployed to
+AKS with Helm and Argo CD. The application provides a web dashboard, a status
+endpoint, and a health endpoint.
 
 ## Repository layout
 
-- `sample-python-app` contains the application, Dockerfile, and reusable Helm chart.
-- `sample-python-app-argocd` contains the development Helm values and Argo CD application configuration.
+- `app/` — FastAPI application and dashboard template.
+- `helm/sample-python-app/` — reusable Helm chart.
+- `tests/` — application tests.
+- `.github/workflows/build-and-push-acr.yml` — image build, deployment, and
+  release workflow.
+- `pandeyaws/sample-python-app-argocd` — separate repository containing the
+  Argo CD ApplicationSet and environment configuration.
 
 ## Run locally
+
+The commands below use PowerShell:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+python -m pip install "httpx2>=2.0.0,<3.0.0" "pytest>=8.0.0,<10.0.0" "pytest-cov>=5.0.0,<8.0.0"
 uvicorn app.main:app --reload --port 8000
 ```
 
-Open `http://localhost:8000/` for the web dashboard. The application status API is available at `http://localhost:8000/api/status`, and the health check is at `http://localhost:8000/health`.
+Open `http://localhost:8000/` for the dashboard. The JSON status endpoint is
+`http://localhost:8000/api/status`, and the health endpoint is
+`http://localhost:8000/health`.
 
 ## Run tests
 
-Install the application and test dependencies, then run the test suite:
+With the dependencies installed, run:
 
 ```powershell
-python -m pip install -r requirements.txt 'httpx2>=2.0.0,<3.0.0' 'pytest>=8.0.0,<10.0.0' 'pytest-cov>=5.0.0,<8.0.0'
 python -m pytest --junitxml=test-results.xml --cov=app --cov-fail-under=80 --cov-report=xml:coverage.xml --cov-report=term-missing
 ```
 
-The command prints coverage in the terminal and writes JUnit results to `test-results.xml` and coverage details to `coverage.xml`. It fails if application coverage is below 80%. GitHub Actions runs the same command before building the image, then uploads those reports and `tests/test_main.py` as the `python-test-artifacts` artifact (retained for 14 days), even when tests fail. Download it from the workflow run's **Artifacts** section.
+The command requires at least 80% application coverage. It writes JUnit results
+to `test-results.xml` and coverage details to `coverage.xml`.
 
-## Build and publish with GitHub Actions
+## Build and deployment workflow
 
-The workflow in `.github/workflows/build-and-push-acr.yml` builds pull requests to `master`. On each push to `master`, it calculates and creates a SemVer tag (using conventional commit messages to determine the version bump), then publishes the image with both that release tag and the commit SHA. The image is not published for pull requests.
+The GitHub Actions workflow is triggered by pushes and pull requests targeting
+`master`. Its jobs are currently gated to pushes to `master`, so a pull-request
+run does not build or deploy the application.
 
-Configure these repository Actions secrets:
+On a push to `master`, the workflow:
 
-- `AZURE_CLIENT_ID`
-- `AZURE_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID`
-- `ARGOCD_REPO_TOKEN` — a fine-grained personal access token with Contents read/write access to `pandeyaws/sample-python-app-argocd`.
+1. Calculates the next `vMAJOR.MINOR.PATCH` tag from commit messages. It
+   recognizes conventional commit messages (`fix:` for patch, `feat:` for
+   minor, and a `BREAKING CHANGE:` footer for major); if no bump is detected it
+   defaults to patch.
+2. Runs tests, builds the image, scans it for critical and high vulnerabilities,
+   and pushes it to
+   `acreusdev01.azurecr.io/sample-python-app` with both the version tag and
+   commit SHA as image tags.
+3. Pushes the version tag to this repository.
+4. Updates the `dev` environment's `targetRevision` in the Argo CD
+   ApplicationSet in `pandeyaws/sample-python-app-argocd`, then syncs and waits
+   for the parent Argo CD application and waits for the development app to
+   become healthy.
+5. After development succeeds, updates the `prd` environment and performs the
+   production Argo CD sync and health wait.
+6. After production succeeds, creates a GitHub release for the version tag and
+   generates release notes.
 
-Configure these repository Actions variables:
+The workflow uses Argo CD automated sync for the generated environment
+applications. GitHub immutable releases must also be enabled in repository
+settings if releases are to be immutable.
 
-- `ACR_NAME`, such as `acreusdev01` (the registry resource name, without `.azurecr.io`)
-- `ACR_LOGIN_SERVER`, such as `acreusdev01.azurecr.io`
+## GitHub Actions and Azure configuration
 
-Create the GitHub Actions environment named `acr-publish`. Configure an Azure federated credential for this repository with subject `repo:<OWNER>/<REPO>:environment:acr-publish`, issuer `https://token.actions.githubusercontent.com`, and audience `api://AzureADTokenExchange`. Grant that identity the `AcrPush` role on the registry. The AKS cluster must also have permission to pull from the registry.
+The workflow uses these GitHub Actions values:
 
-Each push to `master` creates the release tag and publishes it. The workflow then updates the dev ApplicationSet's `targetRevision` in `pandeyaws/sample-python-app-argocd` to that tag and pushes the change to `master`. The ApplicationSet uses this revision for the Helm chart and image tag, and Argo CD's automated sync deploys it. The tag action uses the conventional commit message to choose the bump (`fix:` for patch, `feat:` for minor, and a `BREAKING CHANGE:` footer for major); otherwise it defaults to patch.
+| Name | Type | Purpose |
+| --- | --- | --- |
+| `APP_ID` | Variable | GitHub App ID used to access this repository and the Argo CD configuration repository. |
+| `APP_PRIVATE_KEY` | Secret | Private key for that GitHub App. The app needs repository Contents access to push the version tag and update the configuration repository. |
+| `AZURE_CLIENT_ID` | Secret | Azure identity used by GitHub Actions OIDC login. |
+| `AZURE_TENANT_ID` | Secret | Azure tenant for the identity. |
+| `AZURE_SUBSCRIPTION_ID` | Secret | Azure subscription for the identity. |
+| `ARGOCD_SERVER` | Secret | Argo CD API server address. |
+| `ARGOCD_USERNAME` | Secret | Argo CD account used by the deployment action. |
+| `ARGOCD_PASSWORD` | Secret | Password for that Argo CD account. |
 
-The generated tag does not trigger a second workflow run. The image publish job uses the tag output from the version job in the same run.
+The build and development deployment jobs use the GitHub Actions environment
+named `development`; production deployment uses the `production` environment.
+Configure environment-specific secrets there if the values differ between
+environments, and ensure the required environments exist.
 
-To render the chart locally with development settings, clone the infra repository beside this repository and run:
+Configure an Azure federated credential for the repository's `development`
+environment. Its subject must be
+`repo:<OWNER>/<REPO>:environment:development`, its issuer
+`https://token.actions.githubusercontent.com`, and its audience
+`api://AzureADTokenExchange`. Grant the Azure identity the `AcrPush` role on
+the `acreusdev01` registry. The AKS cluster must also be allowed to pull images
+from that registry.
+
+## Argo CD permissions
+
+The deployment workflow authenticates with `ARGOCD_USERNAME` and
+`ARGOCD_PASSWORD`. Successful login proves the account authenticated; it does
+not grant permission to sync applications. A `PermissionDenied` on
+`argocd app sync` means the account's effective Argo CD RBAC policy does not
+allow that operation on the target application.
+
+An Argo CD administrator should check the parent application's project:
+
+```bash
+argocd app get apps-sample-python-app -o json | jq -r '.spec.project'
+```
+
+For an Argo CD project role, grant at least `get` and `sync` on the parent
+application. In the policy object, use `<application-project>/<application-name>`
+and replace the placeholders with the parent's actual project and name. For
+example, if its project is `apps-sample-python-app`, the object is
+`apps-sample-python-app/apps-sample-python-app`:
+
+```yaml
+policies:
+  - p, proj:apps-sample-python-app:apps-sample-python-app-admin, applications, get, apps-sample-python-app/apps-sample-python-app, allow
+  - p, proj:apps-sample-python-app:apps-sample-python-app-admin, applications, sync, apps-sample-python-app/apps-sample-python-app, allow
+```
+
+Add policies to the existing role configuration; do not replace unrelated
+policies. Ensure the identity used by the workflow is actually assigned to that
+role. For an SSO-managed role, this means assigning the matching SSO group. A
+local Argo CD username/password account may need an appropriate global RBAC
+role instead of an SSO group mapping.
+
+The shared deployment action also reads/waits on the environment child
+application and syncs `cert-manager` and `external-secrets`. Check and grant
+only the required access to those applications as well. Their Argo CD projects
+may differ from the parent application's project.
+
+Validate access while logged into the same Argo CD server as the workflow,
+using the same account and credentials. These commands are read-only checks;
+substitute the actual project for each application:
+
+```bash
+argocd account can-i get applications '<PROJECT>/apps-sample-python-app'
+argocd account can-i sync applications '<PROJECT>/apps-sample-python-app'
+argocd account can-i get applications '<PROJECT>/sample-python-app-dev'
+argocd account can-i sync applications '<PROJECT>/sample-python-app-dev'
+```
+
+Run the child checks against the production application too, and check the
+`cert-manager` and `external-secrets` applications if the shared action uses
+them. The relevant `can-i` checks should return `yes`. If one returns `no`,
+have an Argo CD administrator adjust the role or group mapping and test again.
+
+## Render the Helm chart locally
+
+Clone `pandeyaws/sample-python-app-argocd` alongside this repository, then run
+from the application repository:
 
 ```powershell
 helm template sample-python-app ./helm/sample-python-app `
-	--values ../sample-python-app-argocd/argocd/values/dev.yaml `
-	--namespace default
+    --values ../sample-python-app-argocd/argocd/values/dev.yaml `
+    --namespace default
 ```
