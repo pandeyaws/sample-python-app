@@ -12,7 +12,9 @@ endpoint, and a health endpoint.
 - `.github/workflows/build-and-push-acr.yml` — image build, deployment, and
   release workflow.
 - `pandeyaws/sample-python-app-argocd` — separate repository containing the
-  Argo CD ApplicationSet and environment configuration.
+  Argo CD ApplicationSet.
+- `pandeyaws/scf-k8s-argocd` — platform repository containing this app's Argo CD
+  parent Application and AppProject.
 
 ## Run locally
 
@@ -41,6 +43,28 @@ python -m pytest --junitxml=test-results.xml --cov=app --cov-fail-under=80 --cov
 The command requires at least 80% application coverage. It writes JUnit results
 to `test-results.xml` and coverage details to `coverage.xml`.
 
+## Application architecture
+
+The deployment is split across three repositories, with Argo CD managing the
+transition from a built release to the workloads running in AKS:
+
+| Repository | Responsibility |
+| --- | --- |
+| `pandeyaws/sample-python-app` (this repository) | FastAPI source, Helm chart and environment values; GitHub Actions tests the app, builds and publishes its container image, and starts deployments. |
+| `pandeyaws/sample-python-app-argocd` | ApplicationSet that generates the `dev` and `prd` child Applications. Each environment's `targetRevision` selects the revision of this repository used for its Helm chart and image. |
+| `pandeyaws/scf-k8s-argocd` | Argo CD parent Application and the `apps-sample-python-app` AppProject, which scopes the Argo CD applications and their access. |
+
+![Application deployment flow](docs/application-deployment.svg)
+
+On a push to `master`, GitHub Actions calculates a release tag, tests the
+application, builds and pushes the image with that tag, and pushes the tag to
+this repository. It then updates the selected environment's `targetRevision`
+in the ApplicationSet. That value is a Git tag in this repository: Argo CD
+uses it to load `helm/sample-python-app` and its `values.yaml` plus
+environment-specific values, and the ApplicationSet uses the same value as the
+container image tag. The workflow deploys `dev` first and advances `prd` only
+after development succeeds.
+
 ## Build and deployment workflow
 
 The GitHub Actions workflow is triggered by pushes and pull requests targeting
@@ -61,7 +85,8 @@ On a push to `master`, the workflow:
 4. Updates the `dev` environment's `targetRevision` in the Argo CD
    ApplicationSet in `pandeyaws/sample-python-app-argocd`, then syncs and waits
    for the parent Argo CD application and waits for the development app to
-   become healthy.
+   become healthy. The parent Application and its `apps-sample-python-app`
+   AppProject are managed in `pandeyaws/scf-k8s-argocd`.
 5. After development succeeds, updates the `prd` environment and performs the
    production Argo CD sync and health wait.
 6. After production succeeds, creates a GitHub release for the version tag and
