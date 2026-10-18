@@ -118,7 +118,7 @@ jobs:
           argocd_server: ${{ secrets.ARGOCD_SERVER }}
           argocd_username: ${{ secrets.ARGOCD_USERNAME }}
           argocd_password: ${{ secrets.ARGOCD_PASSWORD }}          
-          parent_app: apps-sample-python-app
+          parent_app: sample-python-app
           child_app: sample-python-app-dev
           cert_manager_app: cert-manager
           external-secrets: external-secrets    
